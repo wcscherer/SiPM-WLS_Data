@@ -12,6 +12,36 @@ import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 
+def fom_sipm(fiber_dat,sipm_dat,n_intp):
+    """
+    Returns the Figure of Merit (FoM) for WLS fiber and SiPM digitized
+    performance curves.  Interpolates points to constant width along the
+    wavelength (x dimension)
+    
+    fiber_dat is the digitized WLS fiber emission curve as a dataframe
+    
+    sipm_dat is the digitized SiPM performance curve as a dataframe
+    
+    n_intp is the number of points of uniform width desired to interpolate to
+    """
+    xf = fiber_dat['Wavelength (nm)']; yf = fiber_dat['Amplitude']
+    
+    xs = sipm_dat['Wavelength (nm)']; ys = sipm_dat['PDE']
+    
+    xr = len(xf); xdiff = xf[xr-1]-xf[0]
+    #Interpolate fiber data to constant width points
+    xfe = np.linspace(xf[0],xf[xr-1],num=n_intp)
+    
+    dx = np.diff(xfe)[0]
+    
+    yfe = np.interp(xfe,xf,yf)
+    
+    ys = np.interp(xfe,xs,ys)
+    
+    fom = np.dot(ys/100,yfe)*dx
+    
+    return(fom, xfe, ys/100,yfe,dx)
+
 
 def fom_plot(fiber_dat,sipm_dat,plot_title):
     """
@@ -23,16 +53,13 @@ def fom_plot(fiber_dat,sipm_dat,plot_title):
     from, so everything can be plotted on a signle graph
     """
     
-    sipm_itp = np.interp(fiber_dat['Wavelength (nm)'],
-                         sipm_dat['Wavelength (nm)'], sipm_dat['PDE'])
-    
     # calculate figure of merit using dot product                         
-    FOM = np.dot(fiber_dat['Amplitude'],sipm_itp/100)
+    FOM, xsim, ysim, yfe, dx = fom_sipm(fiber_dat,sipm_dat,101)
     
     # plot the results and save the plot to local directoryftc
     fig = plt.figure()
-    plt.plot(fiber_dat['Wavelength (nm)'],fiber_dat['Amplitude'],'rx-',label= 'Fiber Emit')
-    plt.plot(fiber_dat['Wavelength (nm)'], sipm_itp/max(sipm_dat['PDE']),'b*',
+    plt.plot(xsim,yfe,'rx-',label= 'Fiber Emit')
+    plt.plot(xsim, ysim/max(sipm_dat['PDE']/100),'b*',
                  label='PDE - interp')
     plt.plot(sipm_dat['Wavelength (nm)'],sipm_dat['PDE']/max(sipm_dat['PDE']),'kx-',
                      label = 'SiPM PDE')
@@ -45,7 +72,7 @@ def fom_plot(fiber_dat,sipm_dat,plot_title):
     plt.draw()
     plt.savefig(plot_title+'.png')
     
-    return(fig )
+    return(fig, len(xsim), dx)
     
 def multi_plot(fiber_array,sipm_dat,plot_titles, figname):
     """
@@ -58,18 +85,19 @@ def multi_plot(fiber_array,sipm_dat,plot_titles, figname):
     """
     i = 1
     fig = plt.subplots(figsize=(12,5))
+    dxa = []
+    npoint = []
     for fiber in fiber_array:
-        
-        sipm_itp = np.interp(fiber['Wavelength (nm)'],
-                             sipm_dat['Wavelength (nm)'], sipm_dat['PDE'])
-        
+    
+    
         # calculate figure of merit using dot product                         
-        FOM = np.dot(fiber['Amplitude'],sipm_itp/100)
-        
+        FOM, xsim, ysim, yfe, dx = fom_sipm(fiber,sipm_dat,101)
+        dxa.append(dx)
+        npoint.append(len(xsim))
         # plot the results and save the plot to local directoryftc
         plt.subplot(1,len(fiber_array),i)
-        plt.plot(fiber['Wavelength (nm)'],fiber['Amplitude'],'rx-',label= 'Fiber Emit')
-        plt.plot(fiber['Wavelength (nm)'], sipm_itp/max(sipm_dat['PDE']),'b*',
+        plt.plot(xsim,yfe,'rx-',label= 'Fiber Emit')
+        plt.plot(xsim, ysim/max(sipm_dat['PDE']/100),'b*',
                      label='PDE - interp')
         plt.plot(sipm_dat['Wavelength (nm)'],sipm_dat['PDE']/max(sipm_dat['PDE']),'kx-',
                          label = 'SiPM PDE')
@@ -89,7 +117,7 @@ def multi_plot(fiber_array,sipm_dat,plot_titles, figname):
     plt.savefig(str(figname)+'.png')
     
     
-    return(fig )
+    return(fig,dxa,npoint)
         
 def multi_sipm(fiber_array,sipm_array,plot_titles, figname,figsz):
     """
@@ -104,21 +132,21 @@ def multi_sipm(fiber_array,sipm_array,plot_titles, figname,figsz):
     row = len(fiber_array)
     col = len(sipm_array)
     fig = plt.subplots(figsize=figsz)
-    
+    dxa = []
+    npoint = []
     for fiber in fiber_array:
         
         for sipm in sipm_array:
 
-            sipm_itp = np.interp(fiber['Wavelength (nm)'],
-                             sipm['Wavelength (nm)'], sipm['PDE'])
         
             # calculate figure of merit using dot product                         
-            FOM = np.dot(fiber['Amplitude'],sipm_itp/100)
-        
+            FOM, xsim, ysim, yfe, dx = fom_sipm(fiber,sipm,101)
+            dxa.append(dx)
+            npoint.append(len(xsim))
             # plot the results and save the plot to local directoryftc
             plt.subplot(row,col,i)
-            plt.plot(fiber['Wavelength (nm)'],fiber['Amplitude'],'rx-',label= 'Fiber Emit')
-            plt.plot(fiber['Wavelength (nm)'], sipm_itp/max(sipm['PDE']),'b*',
+            plt.plot(xsim,yfe,'rx-',label= 'Fiber Emit')
+            plt.plot(xsim, ysim/max(sipm['PDE']/100),'b*',
                      label='PDE - interp')
             plt.plot(sipm['Wavelength (nm)'],sipm['PDE']/max(sipm['PDE']),'kx-',
                          label = 'SiPM PDE')
@@ -137,7 +165,7 @@ def multi_sipm(fiber_array,sipm_array,plot_titles, figname,figsz):
     plt.tight_layout()
     plt.savefig(str(figname)+'.png')
     
-    return(fig )      
+    return(fig,dxa,npoint)      
     
     
 
@@ -146,9 +174,9 @@ def multi_sipm(fiber_array,sipm_array,plot_titles, figname,figsz):
 #%%
 
 # import and plot the SG BCF-92 digitized performance data
-bcf92_a = pd.read_csv('BCF_92_Absorp.csv',names = ['Wavelength (nm)',
+bcf92_a = pd.read_csv('/Users/wscherer13/Documents/Phys-Research/SiPMs/plot_data/csv_files/stgobain/BCF_92_Absorp.csv',names = ['Wavelength (nm)',
                                                     'Amplitude'])
-bcf92_e= pd.read_csv('BCF_92_Emit_data.csv',names=['Wavelength (nm)',
+bcf92_e= pd.read_csv('/Users/wscherer13/Documents/Phys-Research/SiPMs/plot_data/csv_files/stgobainBCF_92_Emit_data.csv',names=['Wavelength (nm)',
                                                     'Amplitude'])
 
 fig1 = plt.figure()
@@ -163,9 +191,9 @@ plt.savefig('BCF-92_Performance.png')
 
 
 # import and plot the Karary Y-11 digitized perforance data
-y11_a = pd.read_csv('y11_absn.csv',names = ['Wavelength (nm)',
+y11_a = pd.read_csv('/Users/wscherer13/Documents/Phys-Research/SiPMs/plot_data/csv_files/kuraray/y11_absn.csv',names = ['Wavelength (nm)',
                                                     'Amplitude'])
-y11_e= pd.read_csv('y11_emit.csv',names=['Wavelength (nm)',
+y11_e= pd.read_csv('/Users/wscherer13/Documents/Phys-Research/SiPMs/plot_data/csv_files/kuraray/y11_emit.csv',names=['Wavelength (nm)',
                                                     'Amplitude'])
 
 fig2 = plt.figure()
@@ -193,7 +221,7 @@ titles = ['Y-11 Fiber with AdvanSiD NUV-1C','Y-11 Fiber with AdvanSiD RGB-1C',
         'BCF-92 Fiber with AdvanSiD NUV-1C','BCF-92 Fiber with AdvanSiD RGB-1C']   
 figtitle = 'Advn_sipm_fom'
 sipms = [advn_nuv,advn_rgb]
-fadv_nuv = multi_sipm(fibers, sipms,titles,figtitle, (10,10))
+fadv_nuv, dx_advn, adv_len = multi_sipm(fibers, sipms,titles,figtitle, (10,10))
 
 
 #%%
@@ -218,7 +246,7 @@ figtitle = 'HMU_13361-2050_fom'
 fhu_133 = multi_plot(fibers, hu_133,titles,figtitle, (10,10)) 
 
 #%%
-# import the Hamamatsu S13361-25 through 75pe SiPM PDE
+# import the Hamamatsu S13360-25 through 75pe SiPM PDE
 hu_13325 = pd.read_csv('s13360_25pe.csv',names = ['Wavelength (nm)',
                                                     'PDE'])
 hu_13350 = pd.read_csv('hu_s13360-50pe.csv',names = ['Wavelength (nm)',
